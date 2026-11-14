@@ -19,10 +19,12 @@ data/*.csv
 data/*.xlsx
 !data/README.md
 
-# Generated results. Keep only the final summary CSV in version control.
+# Generated results. Keep only the final summary CSV and baseline in version control.
 results/*
 !results/.gitkeep
 !results/summary.csv
+!results/baseline/
+!results/baseline/**
 
 # Model artefacts and local logs
 *.joblib

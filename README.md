@@ -17,43 +17,49 @@ excludes suspicious clients before aggregation.
 
 ## Current status
 
-**Task 1 (foundation) is implemented.** This includes:
+- **Task 1 (foundation) is implemented** by Kunal Khandelwal.
+- **Task 2 (clean FedAvg baseline + centralized reference) is implemented** by Pratik Rakhecha.
 
-- reproducible data loading, cleaning, stratified splitting, and scaling
-- train-only imputation/encoding/scaling with no validation/test leakage
-- a shared evaluation harness with accuracy, precision, recall, F1, ROC-AUC,
-  and confusion matrices
-- a CLI smoke check and a Streamlit app shell
-- automated tests using a synthetic Framingham-shaped dataset
+Task 2 deliverables completed:
+- `src/federated.py`: seeded client partitioning, weighted `fedavg()`, true FedAvg server loop, one-shot comparison, and centralized reference.
+- Acceptance criteria satisfied: FedAvg accuracy (66.86%) matches centralized reference (66.98%) within -0.12% on the held-out test set (well within the ±2–3% tolerance).
+- Full artifact output under `results/baseline/`: metrics JSON, convergence CSV/PNG, and confusion matrices.
+- 10 comprehensive tests in `tests/test_federated.py` (all 70 tests in the repository pass).
+- App integration in `app.py` for live/persisted baseline comparison.
 
 **Still to come:**
 
-- Task 2: clean FedAvg baseline and centralized reference
-- Task 3: z-score defense and validation protocol
-- Task 4: attack simulation and the full experiment matrix
+- Task 3: z-score defense and validation protocol (Kunal V Kurundwadkar)
+- Task 4: attack simulation and the full experiment matrix (Team Member 4)
 
 See [`team_plan.md`](team_plan.md) for the workstreams and owners.
 
 ## Repository layout
 
 ```text
-main.py                 CLI: data summary + optional smoke check
-app.py                  Streamlit app shell
+main.py                 CLI: data foundation check + Task 2 baseline runner
+app.py                  Streamlit app shell with live Baseline tab
 src/
   config.py             shared, validated experiment configuration
   data.py               loading, cleaning, splitting, scaling
   evaluate.py           metrics, JSON saving, confusion-matrix plots
+  federated.py          client partitioning, fedavg, local steps, server loop
 tests/
   conftest.py           synthetic Framingham-shaped fixture
   test_data.py
   test_evaluate.py
   test_config.py
+  test_federated.py     Task 2 tests: FedAvg math, partitioning, seed determinism
   test_main.py
   test_app.py
 data/README.md          dataset instructions (raw CSV is gitignored)
 archive/                original prototype, kept for reference only
-results/                generated summaries, splits, metrics, plots
+results/
+  baseline/             convergence curve, comparison JSON, metrics, plots
 team_plan.md            four-person task plan
+reports/
+  task1_report.md       Task 1 documentation
+  task2_report.md       Task 2 baseline report by Pratik Rakhecha
 ```
 
 ## Setup
@@ -115,6 +121,41 @@ Place the Framingham CSV at `data/framingham.csv`. See
 details.
 
 The raw CSV is **not** committed to the repository.
+
+## Run the clean FedAvg baseline (Task 2)
+
+Run the clean federated learning baseline and centralized reference model with one command:
+
+```bash
+python main.py --baseline
+```
+
+Or execute the federated module directly:
+
+```bash
+python -m src.federated
+```
+
+Useful options:
+
+```text
+--data PATH             explicit CSV path
+--protocol {fedavg,one_shot}
+                        FL protocol: true FedAvg (default) or one-shot
+--n-clients INT         number of clients (default: 20)
+--epochs INT            communication rounds (default: 50)
+--lr FLOAT              client learning rate (default: 0.2)
+--seed INT              random seed (default: 42)
+--results-dir PATH      output directory (default: results/baseline)
+```
+
+Outputs written to `results/baseline/`:
+- `fedavg_test_metrics.json` & `fedavg_val_metrics.json`
+- `centralized_test_metrics.json` & `centralized_val_metrics.json`
+- `fedavg_test_confusion_matrix.png` & `centralized_test_confusion_matrix.png`
+- `convergence.csv` & `convergence.png`
+- `comparison.json` (acceptance criteria tolerance check)
+- `baseline_config.json`
 
 ## Run the foundation check
 
@@ -209,7 +250,7 @@ See [`team_plan.md`](team_plan.md) for the full four-person plan.
 
 | Member | Primary workstream |
 |---|---|
-| Kunal Khandelwal | Foundation, data pipeline, evaluation harness |
-| Dewansh Khandelwal | Clean FedAvg baseline + centralized reference |
-| Kunal V Kurundwadkar | Defense mechanism + validation protocol |
-| Pratik Rakhecha | Attack simulation + experiment orchestration |
+| Kunal Khandelwal | Foundation, data pipeline, evaluation harness (Task 1) |
+| Pratik Rakhecha | Clean FedAvg baseline + centralized reference (Task 2) |
+| Kunal V Kurundwadkar | Defense mechanism + validation protocol (Task 3) |
+| Team Member 4 | Attack simulation + experiment orchestration (Task 4) |

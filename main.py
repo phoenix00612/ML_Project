@@ -14,8 +14,11 @@ not the project's FedAvg baseline.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
+
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
 
 from sklearn.linear_model import LogisticRegression
 
@@ -26,6 +29,11 @@ from src.evaluate import (
     format_metrics,
     save_confusion_matrix_plot,
     save_metrics,
+)
+from src.federated import (
+    run_federated,
+    save_baseline_artifacts,
+    train_centralized_model,
 )
 
 
@@ -84,6 +92,35 @@ def build_parser() -> argparse.ArgumentParser:
             "on the validation set. This is a pipeline sanity check, not the "
             "Task 2 FedAvg baseline."
         ),
+    )
+    parser.add_argument(
+        "--baseline",
+        action="store_true",
+        help="Run Task 2 clean FedAvg baseline and compare with centralized model.",
+    )
+    parser.add_argument(
+        "--protocol",
+        choices=["fedavg", "one_shot"],
+        default="fedavg",
+        help="FL protocol for --baseline (default: fedavg).",
+    )
+    parser.add_argument(
+        "--n-clients",
+        type=int,
+        default=20,
+        help="Number of clients for --baseline (default: 20).",
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=50,
+        help="Communication rounds for --baseline (default: 50).",
+    )
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=0.2,
+        help="Client learning rate for --baseline (default: 0.2).",
     )
     parser.add_argument(
         "--evaluate-test",
@@ -240,6 +277,83 @@ def main(argv: list[str] | None = None) -> int:
             seed=config.seed,
             evaluate_test=args.evaluate_test,
         )
+
+    if args.baseline:
+        print()
+        print("=" * 68)
+        print("Task 2: Clean FedAvg baseline & Centralized Reference")
+        print("=" * 68)
+        baseline_dir = config.results_dir / "baseline"
+
+        print("\nTraining centralized reference model...")
+        cent_model, cent_val, cent_test = train_centralized_model(
+            bundle,
+            max_iter=1000,
+            class_weight="balanced",
+            random_state=config.seed,
+        )
+        print("Centralized test metrics:")
+        print(format_metrics(cent_test))
+
+        fed_config = Config(
+            seed=config.seed,
+            test_size=config.test_size,
+            val_size=config.val_size,
+            target_col=config.target_col,
+            n_clients=args.n_clients,
+            epochs=args.epochs,
+            lr=args.lr,
+            data_path=config.data_path,
+            results_dir=config.results_dir,
+        )
+
+        print(f"\nRunning {args.protocol.upper()} federated server loop...")
+        fed_result = run_federated(
+            bundle,
+            config=fed_config,
+            protocol=args.protocol,
+            evaluate_test=True,
+            verbose=True,
+        )
+        print("\nFedAvg test metrics:")
+        print(format_metrics(fed_result.final_test_metrics))
+
+        saved = save_baseline_artifacts(
+            fed_result,
+            cent_val,
+            cent_test,
+            results_dir=baseline_dir,
+        )
+
+        cent_acc = cent_test["accuracy"]
+        fed_acc = fed_result.final_test_metrics["accuracy"]
+        acc_diff = fed_acc - cent_acc
+        cent_f1 = cent_test["f1"]
+        fed_f1 = fed_result.final_test_metrics["f1"]
+        f1_diff = fed_f1 - cent_f1
+        cent_auc = cent_test.get("roc_auc")
+        fed_auc = fed_result.final_test_metrics.get("roc_auc")
+        auc_diff = (fed_auc - cent_auc) if (fed_auc is not None and cent_auc is not None) else None
+
+        print("\n" + "=" * 68)
+        print("BASELINE COMPARISON: CENTRALIZED vs FEDAVG (TEST SET)")
+        print("=" * 68)
+        print(f"Metric        | Centralized | FedAvg      | Difference")
+        print(f"------------- | ----------- | ----------- | ----------")
+        print(f"Accuracy      | {cent_acc:11.4f} | {fed_acc:11.4f} | {acc_diff:+10.4f}")
+        print(f"F1 Score      | {cent_f1:11.4f} | {fed_f1:11.4f} | {f1_diff:+10.4f}")
+        auc_cent_str = f"{cent_auc:11.4f}" if cent_auc is not None else "        n/a"
+        auc_fed_str = f"{fed_auc:11.4f}" if fed_auc is not None else "        n/a"
+        auc_diff_str = f"{auc_diff:+10.4f}" if auc_diff is not None else "       n/a"
+        print(f"ROC-AUC       | {auc_cent_str} | {auc_fed_str} | {auc_diff_str}")
+        print("-" * 68)
+
+        within_tolerance = abs(acc_diff) <= 0.03
+        status_str = "PASSED (within +/- 3.0% tolerance)" if within_tolerance else "FAILED (exceeds tolerance)"
+        print(f"Acceptance Criteria Tolerance Check: {status_str}")
+        print(f"Saved baseline artifacts under: {baseline_dir}")
+        for k, p in saved.items():
+            print(f"  - {k}: {p.name}")
 
     print()
     print("Task 1 foundation complete. FedAvg baseline is Task 2.")

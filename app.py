@@ -9,14 +9,21 @@ Run with:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 from sklearn.linear_model import LogisticRegression
 
+from src.config import Config
 from src.data import DataBundle, load_data, prepare_data
 from src.evaluate import evaluate_model, format_metrics
+from src.federated import (
+    run_federated,
+    save_baseline_artifacts,
+    train_centralized_model,
+)
 
 st.set_page_config(
     page_title="FedDef",
@@ -208,20 +215,122 @@ with data_tab:
         )
 
 with baseline_tab:
-    st.subheader("Clean FedAvg baseline")
-    st.info(
-        "Task 2 (Dewansh) will add the no-attack FedAvg baseline and compare it "
-        "with a centralized logistic regression."
+    st.subheader("Clean FedAvg Baseline (Task 2 — Pratik Rakhecha)")
+    st.caption(
+        "Demonstrates a clean, no-attack FedAvg baseline and proves its "
+        "convergence matches a centralized logistic regression within tolerance (±2–3%)."
     )
-    st.markdown(
-        """
-        Planned outputs:
-        - client partition and seeded local training
-        - weighted FedAvg aggregation
-        - validation/test metrics and a convergence curve
-        - a centralized reference model for sanity checking
-        """
-    )
+
+    baseline_dir = Path("results/baseline")
+    comp_file = baseline_dir / "comparison.json"
+    conv_png = baseline_dir / "convergence.png"
+
+    # Sidebar / Tab controls for baseline
+    ctrl_col1, ctrl_col2, ctrl_col3, ctrl_col4 = st.columns(4)
+    with ctrl_col1:
+        fl_protocol = st.selectbox(
+            "FL Protocol",
+            options=["fedavg", "one_shot"],
+            index=0,
+            help="Preferred: true FedAvg. One-shot averages independently trained client models.",
+        )
+    with ctrl_col2:
+        fl_clients = st.number_input("Number of clients", min_value=2, max_value=50, value=20, step=1)
+    with ctrl_col3:
+        fl_epochs = st.number_input("Rounds / Epochs", min_value=1, max_value=100, value=50, step=5)
+    with ctrl_col4:
+        fl_lr = st.number_input("Learning rate", min_value=0.01, max_value=1.0, value=0.2, step=0.05)
+
+    if st.button("Run FedAvg Baseline Live", type="primary"):
+        with st.spinner("Training centralized reference and running federated baseline..."):
+            fed_cfg = Config(
+                seed=seed,
+                test_size=test_size,
+                val_size=val_size,
+                target_col=TARGET_COLUMN,
+                n_clients=int(fl_clients),
+                epochs=int(fl_epochs),
+                lr=float(fl_lr),
+            )
+            cent_model, cent_val, cent_test = train_centralized_model(
+                bundle,
+                max_iter=1000,
+                class_weight="balanced",
+                random_state=seed,
+            )
+            fed_res = run_federated(
+                bundle,
+                config=fed_cfg,
+                protocol=fl_protocol,
+                evaluate_test=True,
+                verbose=False,
+            )
+            save_baseline_artifacts(
+                fed_res,
+                cent_val,
+                cent_test,
+                results_dir=baseline_dir,
+            )
+            st.session_state["baseline_run_done"] = True
+            st.success("Baseline training completed and saved!")
+
+    # Display comparison if available
+    if comp_file.exists():
+        with comp_file.open("r", encoding="utf-8") as f:
+            comp_data = json.load(f)
+
+        test_cmp = comp_data.get("test_comparison", {})
+        cent_acc = test_cmp.get("centralized_accuracy", 0.0)
+        fed_acc = test_cmp.get("fedavg_accuracy", 0.0)
+        acc_diff = test_cmp.get("accuracy_difference", 0.0)
+
+        cent_f1 = test_cmp.get("centralized_f1", 0.0)
+        fed_f1 = test_cmp.get("fedavg_f1", 0.0)
+        f1_diff = test_cmp.get("f1_difference", 0.0)
+
+        cent_auc = test_cmp.get("centralized_roc_auc", 0.0)
+        fed_auc = test_cmp.get("fedavg_roc_auc", 0.0)
+        auc_diff = test_cmp.get("roc_auc_difference", 0.0)
+
+        st.subheader("Held-Out Test Set: Centralized vs FedAvg")
+        m_col1, m_col2, m_col3 = st.columns(3)
+        m_col1.metric("Accuracy (FedAvg)", f"{fed_acc:6.2%}", delta=f"{acc_diff:+5.2%}")
+        m_col2.metric("F1 Score (FedAvg)", f"{fed_f1:6.2%}", delta=f"{f1_diff:+5.2%}")
+        if cent_auc is not None and fed_auc is not None:
+            m_col3.metric("ROC-AUC (FedAvg)", f"{fed_auc:.4f}", delta=f"{auc_diff:+.4f}")
+
+        is_passed = comp_data.get("tolerance_satisfied", False)
+        if is_passed:
+            st.success("✅ Acceptance Criteria Satisfied: FedAvg accuracy is within ±3.0% of centralized reference.")
+        else:
+            st.warning("⚠️ FedAvg accuracy difference exceeds ±3.0% tolerance.")
+
+        # Comparison table
+        cmp_df = pd.DataFrame(
+            [
+                {"Metric": "Accuracy", "Centralized": f"{cent_acc:.4f}", "FedAvg": f"{fed_acc:.4f}", "Difference": f"{acc_diff:+.4f}"},
+                {"Metric": "F1 Score", "Centralized": f"{cent_f1:.4f}", "FedAvg": f"{fed_f1:.4f}", "Difference": f"{f1_diff:+.4f}"},
+                {"Metric": "ROC-AUC", "Centralized": f"{cent_auc:.4f}" if cent_auc else "n/a", "FedAvg": f"{fed_auc:.4f}" if fed_auc else "n/a", "Difference": f"{auc_diff:+.4f}" if auc_diff else "n/a"},
+            ]
+        )
+        st.dataframe(cmp_df, hide_index=True, width="stretch")
+
+        if conv_png.exists():
+            st.subheader("Convergence Curve (Accuracy, F1, ROC-AUC over Rounds)")
+            st.image(str(conv_png), caption="Validation metrics across communication rounds compared to centralized reference.", use_container_width=True)
+
+        # Show confusion matrices
+        cm_fed_png = baseline_dir / "fedavg_test_confusion_matrix.png"
+        cm_cent_png = baseline_dir / "centralized_test_confusion_matrix.png"
+        if cm_fed_png.exists() and cm_cent_png.exists():
+            st.subheader("Confusion Matrices (Held-Out Test Set)")
+            cm_col1, cm_col2 = st.columns(2)
+            with cm_col1:
+                st.image(str(cm_fed_png), caption="FedAvg Confusion Matrix", use_container_width=True)
+            with cm_col2:
+                st.image(str(cm_cent_png), caption="Centralized Reference Confusion Matrix", use_container_width=True)
+    else:
+        st.info("No baseline results found yet. Click 'Run FedAvg Baseline Live' above or run `python main.py --baseline`.")
 
 with attack_tab:
     st.subheader("Model-poisoning attacks")

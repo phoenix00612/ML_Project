@@ -1,0 +1,34 @@
+{
+  "protocol": "fedavg",
+  "n_clients": 20,
+  "seed": 42,
+  "tolerance_threshold": 0.03,
+  "tolerance_satisfied": true,
+  "test_comparison": {
+    "centralized_accuracy": 0.6698113207547169,
+    "fedavg_accuracy": 0.6686320754716981,
+    "accuracy_difference": -0.001179245283018826,
+    "centralized_f1": 0.3548387096774194,
+    "fedavg_f1": 0.3510392609699769,
+    "f1_difference": -0.0037994487074424765,
+    "centralized_roc_auc": 0.6987310109864043,
+    "fedavg_roc_auc": 0.6991622731830385,
+    "roc_auc_difference": 0.0004312621966341412
+  },
+  "config": {
+    "seed": 42,
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "target_col": "TenYearCHD",
+    "n_clients": 20,
+    "mal_fraction": 0.2,
+    "epochs": 50,
+    "lr": 0.2,
+    "theta": 0.25,
+    "z0": 1.0,
+    "attack_type": "random",
+    "attack_strength": 0.5,
+    "data_path": "data/framingham.csv",
+    "results_dir": "results"
+  }
+}

@@ -1,7 +1,7 @@
 # FedDef — Team Plan
 
 **Project:** FedDef: Robust Aggregation Against Model Poisoning Attacks in Federated Learning  
-**Repository:** https://github.com/maskeensingh/FEDDEF  
+**Repository:** https://github.com/pratikrkcha/ML_Project  
 **Plan date:** 14 November 2026  
 **Status:** Prototype → working, reproducible experiment
 
@@ -12,12 +12,12 @@
 | Order | Member | Roll number | Primary workstream |
 |---|---|---|---|
 | **1** | **Kunal Khandelwal (you)** | IIT2024162 | Foundation, data pipeline, evaluation harness |
-| 2 | Dewansh Khandelwal | IIT2024173 | Correct FedAvg baseline + centralized reference |
+| 2 | Pratik Rakhecha (replacing Dewansh) | IIT2024176 | Correct FedAvg baseline + centralized reference |
 | 3 | Kunal V Kurundwadkar | IIT2024177 | Defense mechanism + validation protocol |
-| 4 | Pratik Rakhecha | IIT2024176 | Attack simulation + experiment orchestration |
+| 4 | Team Member 4 | IIT2024173 | Attack simulation + experiment orchestration |
 
-> **Note:** Task 1 is intentionally assigned to Kunal Khandelwal, as requested. Tasks 2–4 are split equally among the other three members.  
-> The division is based on **dependency order**, not strictly on the original proposal roles. The final report's contribution section should describe the work actually done.
+> **Note:** Task 1 is assigned to Kunal Khandelwal. Task 2 is owned by Pratik Rakhecha (replacing Dewansh Khandelwal). Tasks 3–4 are owned by Kunal V Kurundwadkar and Team Member 4.  
+> The division is based on **dependency order**, not strictly on the original proposal roles. The final report's contribution section describes the work actually done.
 
 ---
 
@@ -121,23 +121,30 @@ A report draft for the Task 1 sections is in
 
 ---
 
-### Task 2 — Dewansh Khandelwal: Correct FedAvg baseline + centralized reference
+### Task 2 — Pratik Rakhecha: Correct FedAvg baseline + centralized reference
 
 **Goal:** Implement a clean, no-attack FedAvg baseline and prove it is close to a centralized logistic regression.
 
 **Deliverables**
 
-- [ ] Add `src/federated.py`:
+- [x] Add `src/federated.py`:
   - partition the training set into `n_clients` with a seeded random split
   - train local `LogisticRegression` with `max_iter=1000`, `class_weight="balanced"`
   - implement `fedavg(updates, weights)` weighted by client sample count
   - implement the server loop
-- [ ] Decide and document the FL protocol:
+- [x] Decide and document the FL protocol:
   - **Preferred:** true FedAvg — clients start each round from the global parameters and perform local steps.
-  - If time is short, use one-shot averaging but name it correctly in the report.
-- [ ] Train a centralized logistic regression on the full training set as a reference.
-- [ ] Save the baseline convergence curve and metrics under `results/baseline/`.
-- [ ] Add `tests/test_federated.py`: weighted-average correctness, client partition covers all rows, identical models average to themselves, same seed reproduces the same result.
+  - Also provide and document one-shot averaging as a baseline comparison.
+- [x] Train a centralized logistic regression on the full training set as a reference.
+- [x] Save the baseline convergence curve and metrics under `results/baseline/`.
+- [x] Add `tests/test_federated.py`: weighted-average correctness, client partition covers all rows, identical models average to themselves, same seed reproduces the same result.
+
+**Task 2 status:** Implementation complete and verified against acceptance criteria.
+On Framingham dataset (20 clients, 50 rounds, lr=0.2, seed=42):
+- Centralized Test: Accuracy 66.98%, F1 0.3548, ROC-AUC 0.6987
+- FedAvg Test: Accuracy 66.86%, F1 0.3510, ROC-AUC 0.6992
+- Accuracy difference: -0.12% (well within the ±2–3% tolerance threshold)
+All 70 tests pass. A comprehensive Task 2 report is in [`reports/task2_report.md`](reports/task2_report.md).
 
 **Acceptance criteria**
 
@@ -335,7 +342,7 @@ A nominated editor compiles the final draft; everyone reviews it once.
 ## 11. First actions (this week)
 
 1. **Kunal K:** ✅ Task 1 complete — `requirements.txt`, `.gitignore`, `src/config.py`, `src/data.py`, `src/evaluate.py`, `main.py`, `app.py`, and the test suite are in place. Interfaces are published.
-2. **Dewansh:** write `src/federated.py` against the interfaces; produce the first clean baseline curve.
+2. **Pratik Rakhecha:** ✅ Task 2 complete — `src/federated.py`, `tests/test_federated.py`, `results/baseline/`, and `reports/task2_report.md` in place. Baseline convergence and tolerance verified within -0.12% of centralized reference.
 3. **Kunal V:** design `src/defense.py` and the validation-set protocol; test against mock updates.
 4. **Pratik:** design `src/attacks.py` and `src/experiments.py`; verify the attack shape/strength on mock updates.
 5. **All:** review the frozen `src.data` / `src.evaluate` interfaces and start feature PRs.
