@@ -1,0 +1,16 @@
+{
+  "seed": 42,
+  "test_size": 0.2,
+  "val_size": 0.1,
+  "target_col": "TenYearCHD",
+  "n_clients": 20,
+  "mal_fraction": 0.2,
+  "epochs": 50,
+  "lr": 0.2,
+  "theta": 0.25,
+  "z0": 1.0,
+  "attack_type": "random",
+  "attack_strength": 0.5,
+  "data_path": "data/framingham.csv",
+  "results_dir": "results"
+}
