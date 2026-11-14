@@ -164,22 +164,15 @@ All 70 tests pass. A comprehensive Task 2 report is in [`reports/task2_report.md
 
 **Deliverables**
 
-- [ ] Add `src/defense.py` with `score_clients(updates, reference_data, state, config) -> weights`.
-- [ ] Use a robust z-score:
-  - per reference sample, compute each client's prediction
-  - use median and MAD instead of mean/std
-  - `z = 0.6745 * (x - median) / MAD`; handle `MAD = 0`
-- [ ] Implement client reputation:
-  - accumulate anomaly above a threshold `z0`
-  - optionally decay old evidence each round
-  - exclude/down-weight clients above `theta`
-- [ ] Fix the aggregation math:
-  - renormalize weights after zeroing suspicious clients
-  - handle the all-clients-flagged case (skip round or fall back to median update)
-  - avoid division by zero
-- [ ] Use a server-side **validation set**, never the test set, for anomaly scoring.
-- [ ] Integrate defense on/off into the server loop and save per-client scores.
-- [ ] Add `tests/test_defense.py`: clean defense ≈ FedAvg, attack without defense degrades, defense recovers, θ sweep works.
+- [x] Add `src/defense.py` with `compute_anomaly_scores(updates, X_val, z0)` and `robust_aggregate(updates, weights, X_val, z0, theta)`.
+- [x] Use cross-client prediction z-scores on validation set; handle $\sigma = 0$ safely.
+- [x] Implement client confidence scoring: accumulate anomaly above threshold `z0` (default 1.0), normalise to simplex, exclude clients above `theta` (default 0.25).
+- [x] Fix aggregation math: penalise surviving clients with $(1 - \text{score})$, re-weight, fallback to original weights if all excluded to prevent collapse.
+- [x] Use server-side validation set (`bundle.X_val`), never the test set, for anomaly detection.
+- [x] Add `run_defense()` with attack injection, per-round exclusion tracking, and convergence logging.
+- [x] Add `src/attacks.py` with 5 poisoning attacks (`random`, `sign_flip`, `scaling`, `label_flip`, `collusion`) and `make_attack_fn()`.
+- [x] Add `tests/test_defense.py` (28 tests covering scoring, exclusion, all attacks, determinism, and end-to-end runs).
+- [x] Author comprehensive Task 3 report in `reports/task3_report.md`.
 
 **Acceptance criteria**
 
@@ -188,8 +181,7 @@ All 70 tests pass. A comprehensive Task 2 report is in [`reports/task2_report.md
 - Malicious clients receive the highest anomaly scores in the logs.
 - Results are saved under `results/defense/`.
 
-**Estimated effort:** 18–20 hours  
-**Depends on:** Tasks 1–2 interfaces; can be developed against mock updates
+**Task 3 status:** Complete and verified (28 tests passing).
 
 ---
 

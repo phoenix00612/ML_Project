@@ -349,17 +349,49 @@ with attack_tab:
     )
 
 with defense_tab:
-    st.subheader("Anomaly-aware aggregation")
-    st.info(
-        "Task 3 (Kunal V) will add robust z-score client scoring and the "
-        "defense-enabled aggregation."
-    )
-    st.markdown(
-        """
-        Planned outputs:
-        - per-client anomaly scores on the validation split
-        - confidence accumulation with a threshold
-        - down-weighting/exclusion before FedAvg
-        - clean-case and attack-case comparison
-        """
-    )
+    st.subheader("FEDDEF: Anomaly-Aware Robust Aggregation (Task 3)")
+    st.caption("Implemented by Kunal V Kurundwadkar (IIT2024177) — based on maskeensingh/FEDDEF")
+
+    defense_dir = Path("results/defense")
+    conv_png = defense_dir / "defense_convergence.png"
+    excl_png = defense_dir / "defense_exclusions.png"
+    val_json = defense_dir / "defense_val_metrics.json"
+    test_json = defense_dir / "defense_test_metrics.json"
+    cm_png = defense_dir / "defense_test_confusion_matrix.png"
+
+    if val_json.exists():
+        import json
+        with val_json.open() as fh:
+            d_val = json.load(fh)
+        d_test = {}
+        if test_json.exists():
+            with test_json.open() as fh:
+                d_test = json.load(fh)
+
+        st.success("Artifacts loaded from `results/defense/`")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Validation Accuracy", f"{d_val.get('accuracy', 0.0):.4f}")
+        col2.metric("Validation F1", f"{d_val.get('f1', 0.0):.4f}")
+        if d_test:
+            col3.metric("Test Accuracy", f"{d_test.get('accuracy', 0.0):.4f}")
+            col4.metric("Test ROC-AUC", f"{d_test.get('roc_auc', 0.0):.4f}")
+
+        if conv_png.exists():
+            st.image(str(conv_png), caption="Defense Convergence over Communication Rounds", use_container_width=True)
+        if excl_png.exists():
+            st.image(str(excl_png), caption="Clients Excluded per Round by Anomaly Detection", use_container_width=True)
+        if cm_png.exists():
+            st.image(str(cm_png), caption="Defense Confusion Matrix (Test Set)", use_container_width=True)
+    else:
+        st.info("Run `python -m src.defense` or `python main.py --defense` to generate and view defense artifacts.")
+        st.markdown(
+            """
+            **Algorithm overview:**
+            1. Per communication round, each client submits local parameters.
+            2. Server computes prediction probabilities on the server validation split.
+            3. Prediction vectors are standard-scored (z-scores) across clients per sample.
+            4. Anomaly score accumulates whenever $|z| \\ge z_0$ (default 1.0).
+            5. Clients with normalized score $\\ge \\theta$ (default 0.25) are excluded.
+            6. Surviving clients are aggregated via sample-weighted FedAvg.
+            """
+        )

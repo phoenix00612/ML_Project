@@ -99,6 +99,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run Task 2 clean FedAvg baseline and compare with centralized model.",
     )
     parser.add_argument(
+        "--defense",
+        action="store_true",
+        help="Run Task 3 FEDDEF robust aggregation defense against model poisoning.",
+    )
+    parser.add_argument(
+        "--attack-type",
+        choices=["random", "sign_flip", "scaling", "label_flip", "collusion", "none"],
+        default="random",
+        help="Poisoning attack type for --defense (default: random).",
+    )
+    parser.add_argument(
+        "--mal-fraction",
+        type=float,
+        default=0.2,
+        help="Fraction of malicious clients for --defense (default: 0.2).",
+    )
+    parser.add_argument(
+        "--theta",
+        type=float,
+        default=0.25,
+        help="Exclusion threshold for FEDDEF anomaly scores (default: 0.25).",
+    )
+    parser.add_argument(
+        "--z0",
+        type=float,
+        default=1.0,
+        help="Z-score threshold for anomaly accumulation (default: 1.0).",
+    )
+    parser.add_argument(
         "--protocol",
         choices=["fedavg", "one_shot"],
         default="fedavg",
@@ -355,8 +384,65 @@ def main(argv: list[str] | None = None) -> int:
         for k, p in saved.items():
             print(f"  - {k}: {p.name}")
 
+    if args.defense:
+        print()
+        print("=" * 68)
+        print("Task 3: FEDDEF Robust Aggregation Defense Against Model Poisoning")
+        print("=" * 68)
+        from src.attacks import make_attack_fn
+        from src.defense import run_defense, save_defense_artifacts
+
+        defense_dir = config.results_dir / "defense"
+        def_config = Config(
+            seed=config.seed,
+            test_size=config.test_size,
+            val_size=config.val_size,
+            target_col=config.target_col,
+            n_clients=args.n_clients,
+            mal_fraction=args.mal_fraction,
+            epochs=args.epochs,
+            lr=args.lr,
+            theta=args.theta,
+            z0=args.z0,
+            attack_type=args.attack_type if args.attack_type != "none" else "random",
+            data_path=config.data_path,
+            results_dir=config.results_dir,
+        )
+
+        attack_fn = None if args.attack_type == "none" else make_attack_fn(args.attack_type, strength=1.0)
+        print(f"\nRunning FEDDEF defense loop (attack={args.attack_type}, theta={args.theta}, z0={args.z0})...")
+        def_result = run_defense(
+            bundle,
+            config=def_config,
+            attack_fn=attack_fn,
+            verbose=True,
+            evaluate_test=True,
+        )
+        print("\nDefended test metrics:")
+        print(format_metrics(def_result.final_test_metrics))
+
+        baseline_val_metrics = {}
+        baseline_test_metrics = {}
+        base_val_path = config.results_dir / "baseline" / "fedavg_val_metrics.json"
+        base_test_path = config.results_dir / "baseline" / "fedavg_test_metrics.json"
+        if base_val_path.exists():
+            from src.evaluate import load_metrics
+            baseline_val_metrics = load_metrics(base_val_path)
+            if base_test_path.exists():
+                baseline_test_metrics = load_metrics(base_test_path)
+
+        saved_def = save_defense_artifacts(
+            def_result,
+            baseline_val_metrics,
+            baseline_test_metrics,
+            results_dir=defense_dir,
+        )
+        print(f"\nSaved defense artifacts under: {defense_dir}")
+        for k, p in saved_def.items():
+            print(f"  - {k}: {p.name}")
+
     print()
-    print("Task 1 foundation complete. FedAvg baseline is Task 2.")
+    print("Task 1 foundation complete. FedAvg baseline is Task 2. Defense is Task 3.")
     return 0
 
 
